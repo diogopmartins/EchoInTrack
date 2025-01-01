@@ -1,0 +1,24 @@
+- PURPLE PATHWAY
+-- PURPLE PATHWAY - IP ECHO request has been received and triaged. High Priority. Echo will be performed ASAP.
+
+- RED PATHWAY
+-- RED PATHWAY - IP ECHO request has been received and triaged. Request has been triaged as red and we will aim to perform within 24 hrs (working days only).
+-- RED PATHWAY - IP ECHO request has been received and triaged. Request has been triaged as red and we will aim to perform within 24 hrs (working days only). Please note we currently experiencing a high volume of echo requests and therefore performance time may be delayed.
+
+- AMBER PATHWAY
+-- AMBER PATHWAY - IP ECHO request has been received and triaged. Request has been triaged as amber and we will aim to perform with 72 hrs / 3 working days.
+-- AMBER PATHWAY - IP ECHO request has been received and triaged. Request has been triaged as amber and we will aim to perform with 72 hrs / 3 working days. Please note we currently experiencing a high volume of echo requests and therefore performance time may be delayed.
+
+- REJECTED
+-- REJECTED - IP Echo Request received and triaged. Request has been rejected as request does not provide the clinical information for heart failure triage such: ECG, Cardiovascular examination (?JVP , ?murmurs), Chest XRay and if there was a previous echo. Please submit a new request with the appropriate clinical details, in accordance with the inpatient echo policy. For more information, call 4473. Please note that a new request must be submitted.
+-- REJECTED - IP Echo Request received and triaged. Request has been rejected as request does not provide the clinical information for efficient triage. Please submit a new request with the appropriate clinical details, in accordance with the inpatient echo policy. For more information, call 4473. Please note that a new request must be submitted.
+-- REJECTED - IP Echo Request received and triaged. Request has been rejected as request does not provide the clinical information for the patient to meet modified Dukes criteria or IP policy criteria to have an echo to look for infective endocarditis.
+-- REJECTED - IP Echo Request received and triaged. Request has been rejected as patient had a recent echo which answers the clinical question on the request.
+-- REJECTED - IP Echo Request received and triaged. Request has been rejected as patient previous study was non-diagnostic and therefore an echo will not be able to answer the clinical questions asked on the referral. Suggests other imaging for this patient.
+
+- DECLINED
+-- DECLINED - IP Echo Request received and triaged. Request has been declined as patient is in fast atrial fibrillation. Please re-request (consider OP) when atrial fibrillation is controlled consistently below 100 bpm and has been confirmed by ECG.
+-- DECLINED - Request received and triaged. Request has been triaged as green and therefore the IP echo has been declined. Please re-request as OP echo.
+
+- PULMONARY EMBOLISM
+-- PE STABLE - IP ECHO request has been received and triaged. As patient has had CTPE scan that shows right heart strain, but is clinically stable. Request outpatient echo for 3 months post discharge as per trust and BSE guidelines. If the patient is haemodynamically unstable or not responding to treatment, please re-request clearly stating this, and we will triage.

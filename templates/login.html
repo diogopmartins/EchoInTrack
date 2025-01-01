@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EchoInTrack - Login</title>
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icon.ico') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1C1C1C;
+            color: white;
+        }
+
+        .login-container {
+            background: #2A2A2A;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            color: #FFD67A;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            padding: 10px;
+            border: 2px solid #FFD67A;
+            border-radius: 5px;
+            background: #1C1C1C;
+            color: white;
+            font-size: 16px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #FFC04D;
+        }
+
+        .login-button {
+            background: #FFD67A;
+            color: #1C1C1C;
+            border: none;
+            padding: 12px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .login-button:hover {
+            background: #FFC04D;
+        }
+
+        h1 {
+            text-align: center;
+            color: #FFD67A;
+            margin-bottom: 30px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #2A2A2A;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: #FFD67A;
+            width: 80%;
+            max-width: 400px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .close-button {
+            background: #FFD67A;
+            color: #1C1C1C;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .close-button:hover {
+            background: #FFC04D;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const errorMessage = "{{ error }}"; // Replace with dynamic value from the backend
+            if (errorMessage) {
+                const modal = document.getElementById('errorModal');
+                const modalText = document.getElementById('modalText');
+                modalText.textContent = errorMessage;
+                modal.style.display = 'flex';
+            }
+
+            document.getElementById('closeModal').addEventListener('click', function () {
+                document.getElementById('errorModal').style.display = 'none';
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="login-container">
+        <h1>EchoInTrack</h1>
+
+        <form class="login-form" method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <button type="submit" class="login-button">Log In</button>
+        </form>
+    </div>
+
+    <!-- Modal Structure -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <p id="modalText"></p>
+            <button id="closeModal" class="close-button">Close</button>
+        </div>
+    </div>
+</body>
+</html>
