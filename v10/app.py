@@ -14,8 +14,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 ###############################################################################
 CONFIG_FILE = 'config.json'
 
-with open(CONFIG_FILE, 'r') as f:
-    config = json.load(f)
+try:
+    with open(CONFIG_FILE, 'r') as f:
+        config = json.load(f)
+except FileNotFoundError:
+    print(f"ERROR: {CONFIG_FILE} not found. Please create it from config.json.example")
+    raise
+except json.JSONDecodeError as e:
+    print(f"ERROR: Invalid JSON in {CONFIG_FILE}: {e}")
+    raise
 
 DB_PATH = config['db_path']                # e.g. "echo.db"
 BACKUP_DIR = config['backup_dir']          # e.g. "backup"
@@ -36,7 +43,8 @@ app = Flask(__name__,
             static_url_path='',
             static_folder='static',
             template_folder='templates')
-app.secret_key = os.urandom(24)
+# Use environment variable for secret key, or generate one if not set
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 
 
 ###############################################################################
@@ -264,11 +272,17 @@ def init_db():
         except Exception as e:
             print("Error adding ward column:", e)
 
-    # Insert default user if none exist
+    # Insert default user if none exist and ADMIN_PASSWORD is set
     c.execute('SELECT COUNT(*) FROM users')
     if c.fetchone()[0] == 0:
-        default_password = generate_password_hash('admin123')
-        c.execute('INSERT INTO users (username, password) VALUES (?, ?)', ('admin', default_password))
+        admin_password = os.environ.get('ADMIN_PASSWORD')
+        if admin_password:
+            default_password = generate_password_hash(admin_password)
+            c.execute('INSERT INTO users (username, password) VALUES (?, ?)', ('admin', default_password))
+            print("Admin user created successfully.")
+        else:
+            print("WARNING: No ADMIN_PASSWORD environment variable set. Admin user not created.")
+            print("Set ADMIN_PASSWORD environment variable to create the default admin user.")
 
     conn.commit()
     conn.close()
@@ -299,20 +313,27 @@ def login():
     Logs a user in by verifying credentials against the 'users' table.
     """
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        try:
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            
+            if not username or not password:
+                return render_template('login.html', error="Username and password are required")
 
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute('SELECT id, password FROM users WHERE username = ?', (username,))
-        user = c.fetchone()
-        conn.close()
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute('SELECT id, password FROM users WHERE username = ?', (username,))
+            user = c.fetchone()
+            conn.close()
 
-        if user and check_password_hash(user[1], password):
-            session['user_id'] = user[0]
-            return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error="Invalid username or password")
+            if user and check_password_hash(user[1], password):
+                session['user_id'] = user[0]
+                return redirect(url_for('index'))
+            else:
+                return render_template('login.html', error="Invalid username or password")
+        except Exception as e:
+            app.logger.error(f"Error during login: {str(e)}")
+            return render_template('login.html', error="An error occurred during login")
 
     return render_template('login.html')
 
@@ -393,8 +414,15 @@ def get_sentences():
     """
     Reads and returns the contents of 'sentences.txt' for triage usage.
     """
-    with open('sentences.txt', 'r') as file:
-        return file.read()
+    try:
+        with open('sentences.txt', 'r', encoding='utf-8') as file:
+            return file.read()
+    except FileNotFoundError:
+        app.logger.error("sentences.txt file not found")
+        return "Error: sentences.txt file not found", 404
+    except Exception as e:
+        app.logger.error(f"Error reading sentences.txt: {str(e)}")
+        return f"Error reading sentences file: {str(e)}", 500
 
 @app.route('/api/add_request', methods=['POST'])
 @login_required
@@ -403,45 +431,60 @@ def add_request():
     API endpoint to add a new echo request.
     Returns the generated request_id as JSON.
     """
-    data = request.json
-    request_id = get_next_request_id()
-    current_time = get_uk_time()
-    triage_date = current_time.date()
+    try:
+        data = request.json
+        if not data or 'pathway' not in data or 'request_time' not in data:
+            return jsonify({'error': 'Invalid request data. Missing required fields.'}), 400
+        
+        # Validate pathway
+        valid_pathways = ['PURPLE PATHWAY', 'RED PATHWAY', 'AMBER PATHWAY', 'GREEN PATHWAY', 'REJECTED']
+        if data['pathway'] not in valid_pathways:
+            return jsonify({'error': f'Invalid pathway. Must be one of: {", ".join(valid_pathways)}'}), 400
+        
+        request_id = get_next_request_id()
+        current_time = get_uk_time()
+        triage_date = current_time.date()
 
-    request_time = iso_to_uk_time(data['request_time'])
-    expected_time = request_time
+        request_time = iso_to_uk_time(data['request_time'])
+        if not request_time:
+            return jsonify({'error': 'Invalid request_time format'}), 400
+        
+        expected_time = request_time
 
-    if data['pathway'] == 'PURPLE PATHWAY':
-        expected_time = add_working_hours_uk(request_time, 1)
-    elif data['pathway'] == 'RED PATHWAY':
-        expected_time = add_working_hours_uk(request_time, 24)
-    elif data['pathway'] == 'AMBER PATHWAY':
-        expected_time = add_working_hours_uk(request_time, 72)
+        if data['pathway'] == 'PURPLE PATHWAY':
+            expected_time = add_working_hours_uk(request_time, 1)
+        elif data['pathway'] == 'RED PATHWAY':
+            expected_time = add_working_hours_uk(request_time, 24)
+        elif data['pathway'] == 'AMBER PATHWAY':
+            expected_time = add_working_hours_uk(request_time, 72)
 
-    # Get name / mrn / ward if provided
-    name_val = data.get('name', '')
-    mrn_val = data.get('mrn', '')
-    ward_val = data.get('ward', '')
+        # Get name / mrn / ward if provided
+        name_val = data.get('name', '')
+        mrn_val = data.get('mrn', '')
+        ward_val = data.get('ward', '')
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO echo_requests (request_id, pathway, request_time, expected_time, triage_date, notes, name, mrn, ward)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        request_id,
-        data['pathway'],
-        uk_time_to_iso(request_time),
-        uk_time_to_iso(expected_time),
-        triage_date,
-        "",  # default blank notes
-        name_val,
-        mrn_val,
-        ward_val
-    ))
-    conn.commit()
-    conn.close()
-    return jsonify({'request_id': request_id})
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO echo_requests (request_id, pathway, request_time, expected_time, triage_date, notes, name, mrn, ward)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            request_id,
+            data['pathway'],
+            uk_time_to_iso(request_time),
+            uk_time_to_iso(expected_time),
+            triage_date,
+            "",  # default blank notes
+            name_val,
+            mrn_val,
+            ward_val
+        ))
+        conn.commit()
+        conn.close()
+        return jsonify({'request_id': request_id})
+    except Exception as e:
+        app.logger.error(f"Error adding request: {str(e)}")
+        return jsonify({'error': 'Failed to add request'}), 500
 
 def get_next_request_id():
     """
@@ -841,18 +884,26 @@ def mark_completed():
     """
     Marks a given request as 'completed' with the current UK time.
     """
-    request_id = request.json['id']
-    completion_time = get_uk_time().isoformat()
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE echo_requests
-        SET status = 'completed', completion_time = ?
-        WHERE id = ?
-    ''', (completion_time, request_id))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success'})
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data['id']
+        completion_time = get_uk_time().isoformat()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            UPDATE echo_requests
+            SET status = 'completed', completion_time = ?
+            WHERE id = ?
+        ''', (completion_time, request_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        app.logger.error(f"Error marking request as completed: {str(e)}")
+        return jsonify({'error': 'Failed to mark request as completed'}), 500
 
 @app.route('/api/delete_request', methods=['POST'])
 @login_required
@@ -860,13 +911,21 @@ def delete_request():
     """
     Deletes a request from the database by its numeric ID.
     """
-    request_id = request.json['id']
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('DELETE FROM echo_requests WHERE id = ?', (request_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success'})
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data['id']
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('DELETE FROM echo_requests WHERE id = ?', (request_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        app.logger.error(f"Error deleting request: {str(e)}")
+        return jsonify({'error': 'Failed to delete request'}), 500
 
 @app.route('/api/undo_completed', methods=['POST'])
 @login_required
@@ -874,17 +933,25 @@ def undo_completed():
     """
     Reverts a completed request back to pending status.
     """
-    request_id = request.json['id']
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE echo_requests
-        SET status = 'pending', completion_time = NULL
-        WHERE id = ?
-    ''', (request_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success'})
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data['id']
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            UPDATE echo_requests
+            SET status = 'pending', completion_time = NULL
+            WHERE id = ?
+        ''', (request_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        app.logger.error(f"Error undoing completion: {str(e)}")
+        return jsonify({'error': 'Failed to undo completion'}), 500
 
 # --------------- NEW NOTES ENDPOINT ---------------
 @app.route('/api/update_notes', methods=['POST'])
@@ -894,21 +961,28 @@ def update_notes():
     Updates the notes field for a given echo request ID.
     Expects JSON: { "id": <request_id>, "notes": "<text>" }
     """
-    data = request.json
-    request_id = data.get('id')
-    new_notes = data.get('notes', "")
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data.get('id')
+        new_notes = data.get('notes', "")
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE echo_requests
-        SET notes = ?
-        WHERE id = ?
-    ''', (new_notes, request_id))
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            UPDATE echo_requests
+            SET notes = ?
+            WHERE id = ?
+        ''', (new_notes, request_id))
+        conn.commit()
+        conn.close()
 
-    return jsonify({'status': 'success', 'notes': new_notes})
+        return jsonify({'status': 'success', 'notes': new_notes})
+    except Exception as e:
+        app.logger.error(f"Error updating notes: {str(e)}")
+        return jsonify({'error': 'Failed to update notes'}), 500
 
 # --------------- NEW FIELDS ENDPOINTS ---------------
 @app.route('/api/update_name', methods=['POST'])
@@ -918,21 +992,28 @@ def update_name():
     Updates the 'name' field for a given echo request ID.
     Expects JSON: { "id": <request_id>, "name": "<text>" }
     """
-    data = request.json
-    request_id = data.get('id')
-    new_name = data.get('name', "")
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data.get('id')
+        new_name = data.get('name', "")
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE echo_requests
-        SET name = ?
-        WHERE id = ?
-    ''', (new_name, request_id))
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            UPDATE echo_requests
+            SET name = ?
+            WHERE id = ?
+        ''', (new_name, request_id))
+        conn.commit()
+        conn.close()
 
-    return jsonify({'status': 'success', 'name': new_name})
+        return jsonify({'status': 'success', 'name': new_name})
+    except Exception as e:
+        app.logger.error(f"Error updating name: {str(e)}")
+        return jsonify({'error': 'Failed to update name'}), 500
 
 @app.route('/api/update_mrn', methods=['POST'])
 @login_required
@@ -941,21 +1022,28 @@ def update_mrn():
     Updates the 'mrn' field for a given echo request ID.
     Expects JSON: { "id": <request_id>, "mrn": "<text>" }
     """
-    data = request.json
-    request_id = data.get('id')
-    new_mrn = data.get('mrn', "")
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data.get('id')
+        new_mrn = data.get('mrn', "")
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE echo_requests
-        SET mrn = ?
-        WHERE id = ?
-    ''', (new_mrn, request_id))
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            UPDATE echo_requests
+            SET mrn = ?
+            WHERE id = ?
+        ''', (new_mrn, request_id))
+        conn.commit()
+        conn.close()
 
-    return jsonify({'status': 'success', 'mrn': new_mrn})
+        return jsonify({'status': 'success', 'mrn': new_mrn})
+    except Exception as e:
+        app.logger.error(f"Error updating MRN: {str(e)}")
+        return jsonify({'error': 'Failed to update MRN'}), 500
 
 @app.route('/api/update_ward', methods=['POST'])
 @login_required
@@ -964,21 +1052,28 @@ def update_ward():
     Updates the 'ward' field for a given echo request ID.
     Expects JSON: { "id": <request_id>, "ward": "<option>" }
     """
-    data = request.json
-    request_id = data.get('id')
-    new_ward = data.get('ward', "")
+    try:
+        data = request.json
+        if not data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data. Missing id.'}), 400
+        
+        request_id = data.get('id')
+        new_ward = data.get('ward', "")
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE echo_requests
-        SET ward = ?
-        WHERE id = ?
-    ''', (new_ward, request_id))
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            UPDATE echo_requests
+            SET ward = ?
+            WHERE id = ?
+        ''', (new_ward, request_id))
+        conn.commit()
+        conn.close()
 
-    return jsonify({'status': 'success', 'ward': new_ward})
+        return jsonify({'status': 'success', 'ward': new_ward})
+    except Exception as e:
+        app.logger.error(f"Error updating ward: {str(e)}")
+        return jsonify({'error': 'Failed to update ward'}), 500
 
 
 @app.route('/change_password', methods=['GET', 'POST'])
@@ -1032,13 +1127,20 @@ def save_sentences():
     Saves edited content back into sentences.txt.
     Expects JSON body: { "content": "..." }
     """
-    data = request.json
-    content = data.get("content", "")
+    try:
+        data = request.json
+        if not data or 'content' not in data:
+            return jsonify({'error': 'Invalid request data. Missing content.'}), 400
+        
+        content = data.get("content", "")
 
-    with open('sentences.txt', 'w', encoding='utf-8') as f:
-        f.write(content)
+        with open('sentences.txt', 'w', encoding='utf-8') as f:
+            f.write(content)
 
-    return jsonify({"status": "success"})
+        return jsonify({"status": "success"})
+    except Exception as e:
+        app.logger.error(f"Error saving sentences.txt: {str(e)}")
+        return jsonify({'error': 'Failed to save sentences file'}), 500
 
 
 ###############################################################################
@@ -1148,4 +1250,6 @@ def admin_page():
 if __name__ == '__main__':
     init_db()
     check_missed_backup()
-    app.run(host='0.0.0.0', debug=True, port=APP_PORT)
+    # Use environment variable for debug mode (default: False for security)
+    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', debug=DEBUG, port=APP_PORT)

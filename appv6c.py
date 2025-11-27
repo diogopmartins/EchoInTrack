@@ -7,7 +7,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import pytz
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+# Use environment variable for secret key, or generate one if not set
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 
 
 
@@ -101,12 +102,18 @@ def init_db():
         )
     ''')
 
-    # Add a default admin user if none exists
+    # Add a default admin user if none exists and ADMIN_PASSWORD is set
     c.execute('SELECT COUNT(*) FROM users')
     if c.fetchone()[0] == 0:
-        default_password = generate_password_hash('admin123')  # Change this default password
-        c.execute('INSERT INTO users (username, password) VALUES (?, ?)',
-                  ('admin', default_password))
+        admin_password = os.environ.get('ADMIN_PASSWORD')
+        if admin_password:
+            default_password = generate_password_hash(admin_password)
+            c.execute('INSERT INTO users (username, password) VALUES (?, ?)',
+                      ('admin', default_password))
+            print("Admin user created successfully.")
+        else:
+            print("WARNING: No ADMIN_PASSWORD environment variable set. Admin user not created.")
+            print("Set ADMIN_PASSWORD environment variable to create the default admin user.")
 
     conn.commit()
     conn.close()
@@ -606,4 +613,6 @@ def get_daily_overdue():
 
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True)
+    # Use environment variable for debug mode (default: False for security)
+    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=DEBUG)

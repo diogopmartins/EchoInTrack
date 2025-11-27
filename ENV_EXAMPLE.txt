@@ -1,0 +1,16 @@
+# Flask Configuration
+# Copy this file to .env and fill in your values
+# Generate a secure random key for production (minimum 24 characters)
+# You can generate one with: python -c "import secrets; print(secrets.token_hex(24))"
+SECRET_KEY=your-secret-key-here-change-this-in-production
+
+# Admin User Configuration
+# Set this to create the default admin user on first run
+# IMPORTANT: Change this to a strong password before first deployment
+ADMIN_PASSWORD=your-admin-password-here
+
+# Flask Debug Mode
+# Set to "True" for development, "False" for production
+# WARNING: Never use True in production!
+FLASK_DEBUG=False
+

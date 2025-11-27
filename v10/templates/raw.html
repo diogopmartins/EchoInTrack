@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EchoInTrack - Full Data</title>
+    <link rel="icon" type="image/x-icon" href="/templates/favicon.ico">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1C1C1C;
+            color: white;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            background: #2A2A2A;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .back-button {
+            background: #FFD67A;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #1C1C1C;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .back-button:hover {
+            background: #FFC04D;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-bar, .filter-dropdown {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #FFD67A;
+            background: #2A2A2A;
+            color: white;
+        }
+        .export-button {
+            background: #FFD67A;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #1C1C1C;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .export-button:hover {
+            background: #FFC04D;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #2A2A2A;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #333;
+            color: #FFD67A;
+        }
+        tr:nth-child(even) {
+            background: #1E1E1E;
+        }
+        tr:hover {
+            background: #444;
+            transition: background-color 0.2s;
+        }
+        .status {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: white;
+        }
+        .status.completed { background: green; }
+        .status.pending { background: #FFD700; } /* Changed to yellow */
+        .status.overdue { background: orange; }
+        .status.rejected { background: #f44336; } /* Red background for rejected */
+        .action-button {
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .delete-button {
+            background: #f44336;
+            color: white;
+        }
+        .delete-button:hover {
+            background: #da190b;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <button class="back-button" onclick="window.location.href='/dashboard'">Back to Dashboard</button>
+<button id="logoutBtn" class="back-button">Logout</button></div>
+
+<div class="controls">
+    <div>
+        <input type="text" id="searchBar" class="search-bar" placeholder="Search by Request ID..." oninput="filterTable()">
+        <select id="pathwayFilter" class="filter-dropdown" onchange="filterTable()">
+            <option value="">Filter by Pathway</option>
+            <option value="PURPLE PATHWAY">Purple</option>
+            <option value="RED PATHWAY">Red</option>
+            <option value="AMBER PATHWAY">Amber</option>
+            <option value="GREEN PATHWAY">Green</option>
+        </select>
+        <select id="filterDropdown" class="filter-dropdown" onchange="filterTable()">
+            <option value="">Filter by Status</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="overdue">Overdue</option>
+            <option value="rejected">Rejected</option>
+        </select>
+    </div>
+    <button class="export-button" onclick="exportFilteredTableToCSV()">Export Filtered to CSV</button>
+</div>
+
+<h1>Raw Echo Requests</h1>
+<table id="dataTable">
+    <thead>
+        <tr>
+            <th>Request ID</th>
+            <th>Pathway</th>
+            <th>Request Time</th>
+            <th>Expected Time</th>
+            <th>Status</th>
+            <th>Completion Time</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in echo_requests %}
+        <tr>
+            <td>{{ row.request_id }}</td>
+            <td>{{ row.pathway }}</td>
+            <td>{{ row.request_time | format_datetime }}</td>
+            <td>{{ row.expected_time | format_datetime }}</td>
+            <td>
+                {% if row.status == 'completed' %}
+                    <span class="status completed">completed</span>
+                {% elif row.pathway == 'GREEN PATHWAY' and not row.completion_time %}
+                    <span class="status rejected">rejected</span>
+                {% elif row.status == 'pending' %}
+                    <span class="status pending">pending</span>
+                {% else %}
+                    <span class="status {{ row.status | lower }}">{{ row.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ row.completion_time | format_datetime }}</td>
+            <td>
+                <button class="action-button delete-button" onclick="deleteRequest({{ row.id }})">Delete</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+function filterTable() {
+    const searchValue = document.getElementById('searchBar').value.toLowerCase().trim();
+    const statusFilter = document.getElementById('filterDropdown').value.toLowerCase().trim();
+    const pathwayFilter = document.getElementById('pathwayFilter').value.trim();
+
+    const table = document.getElementById('dataTable');
+    const rows = table.querySelectorAll('tbody tr');
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 0) return;
+
+        const requestId = cells[0].textContent.toLowerCase().trim();
+        const pathway = cells[1].textContent.trim();
+        const statusCell = cells[4].querySelector('.status');
+        const status = statusCell ? statusCell.textContent.toLowerCase().trim() : '';
+
+        const matchesSearch = !searchValue || requestId.includes(searchValue);
+        const matchesStatus = !statusFilter || status.includes(statusFilter);
+        const matchesPathway = !pathwayFilter || pathway === pathwayFilter;
+
+        row.style.display = (matchesSearch && matchesStatus && matchesPathway) ? '' : 'none';
+    });
+}
+
+function exportFilteredTableToCSV() {
+    const table = document.getElementById('dataTable');
+    if (!table) {
+        alert('Table not found.');
+        return;
+    }
+
+    const rows = table.querySelectorAll('tbody tr');
+    const filteredRows = Array.from(rows).filter(row => row.style.display !== 'none');
+
+    if (filteredRows.length === 0) {
+        alert('No filtered data to export!');
+        return;
+    }
+
+    const headers = Array.from(table.querySelectorAll('thead th'))
+        .map(th => th.textContent.trim())
+        .join(',');
+
+    const csvContent = [
+        headers,
+        ...filteredRows.map(row => Array.from(row.cells)
+            .map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`)
+            .join(','))
+    ].join('\n');
+
+    console.log('CSV Content:', csvContent);
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+    const filename = `Echo_data_${dateStr}_${timeStr}.csv`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+
+    async function handleLogout() {
+    try {
+        const response = await fetch('/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include' // Include session cookies
+        });
+
+        if (response.ok) {
+            window.location.href = '/login';
+        } else {
+            alert('Failed to log out. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error during logout:', error);
+        alert('An unexpected error occurred during logout.');
+    }
+}
+
+// Update all logout button event listeners to use this function
+document.addEventListener('DOMContentLoaded', function() {
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+
+    // Also update the logout buttons in the header sections
+    const headerLogoutBtns = document.querySelectorAll('.back-button[onclick*="/logout"]');
+    headerLogoutBtns.forEach(btn => {
+        btn.removeAttribute('onclick');
+        btn.addEventListener('click', handleLogout);
+    });
+});
+</script>
+
+</body>
+</html>
