@@ -2,6 +2,8 @@
 
 A Flask-based web application for tracking and managing inpatient echocardiogram (echo) requests in a hospital setting. The system provides triage pathways, automated deadline calculation, and comprehensive tracking of echo request completion times.
 
+**Design Inspiration**: The dashboard interface is inspired by air traffic control systems, using visual "strips" (bars) to organize and prioritize echo requests, similar to how air traffic controllers manage flight schedules and priorities.
+
 ## Features
 
 - **Triage System**: Multiple pathways (PURPLE, RED, AMBER, GREEN/REJECTED) with different completion targets
@@ -21,7 +23,7 @@ The main triage interface allows staff to quickly select and copy triage respons
 ![Triage Interface](Screenshots/Screenshot%202025-11-27%20at%2003.06.33.png)
 
 ### Dashboard
-Real-time dashboard showing current statistics, pending requests by pathway, and daily trends over the last 15 days.
+Real-time dashboard showing current statistics, pending requests by pathway, and daily trends over the last 15 days. The interface uses an air traffic control-inspired design with visual "strips" to organize and prioritize echo requests by urgency and deadline.
 
 ![Dashboard](Screenshots/screencapture-localhost-8282-dashboard-2025-11-27-03_13_24.png)
 
