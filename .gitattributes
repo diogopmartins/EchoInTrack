@@ -1,0 +1,14 @@
+# Tell GitHub to ignore HTML files for language statistics
+*.html linguist-detectable=false
+
+# Mark Python as the primary language
+*.py linguist-detectable=true
+
+# Mark other files appropriately
+*.md linguist-detectable=false
+*.txt linguist-detectable=false
+*.json linguist-detectable=false
+*.pdf linguist-detectable=false
+*.png linguist-detectable=false
+*.ico linguist-detectable=false
+
