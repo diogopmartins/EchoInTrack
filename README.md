@@ -23,7 +23,7 @@ The main triage interface allows staff to quickly select and copy triage respons
 ### Dashboard
 Real-time dashboard showing current statistics, pending requests by pathway, and daily trends over the last 15 days.
 
-![Dashboard](Screenshots/Screenshot%202025-11-27%20at%2003.06.49.png)
+![Dashboard](Screenshots/screencapture-localhost-8282-dashboard-2025-11-27-03_13_24.png)
 
 ### Raw Data View
 Comprehensive table view of all echo requests with filtering, search, and export capabilities.
